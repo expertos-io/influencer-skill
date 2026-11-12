@@ -20,3 +20,14 @@ git clone https://github.com/expertos-io/influencer-skill.git ~/.codex/skills/in
 ```
 
 Para actualizarla: `git -C ~/.codex/skills/influencer-crear-contenido pull`.
+
+## Para otra comunidad
+
+La comunidad a la que se conecta es una sola línea, al principio de `scripts/influencer.py`:
+
+```python
+COMMUNITY_SITE = ""   # p. ej. "https://app.tumarca.com"
+```
+
+Vacía = la web principal (cada persona entra y elige su comunidad). Con una dirección, la skill se conecta
+directamente a esa comunidad y no pregunta nada.

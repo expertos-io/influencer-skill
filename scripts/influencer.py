@@ -5,7 +5,7 @@ Standard library only.
 Each user connects THEIR agent to THEIR community (on the web address where they enter it) with OAuth.
 Content is made with the influencers assigned to them, and everything is paid with their own credits.
 
-  python3 influencer.py login --site <the web address of their community>   # a link; run it again until connected
+  python3 influencer.py login                        # a link to authorize; run it again until connected
   python3 influencer.py welcome                      # first steps: their influencers, angles and settings
   python3 influencer.py influencer-photos <id|#number|name> [--out dir]   # download all the photos of one
   python3 influencer.py whoami                       # connected? community, permissions, credit balance
@@ -36,13 +36,21 @@ Content is made with the influencers assigned to them, and everything is paid wi
 --video / --image accept a local file (uploaded first) or an https URL; --video also an Instagram reel or
 post link (downloaded on the server). Without --model/--quality/--beauty the user's `prefs` are used
 (first time: Ultra 480p, the cheapest, beauty on; HD 1080p only if the user chooses it).
-Everything goes to the web address of the user's community (its /v1 API). Env: INFLUENCER_SITE (that address),
+Everything goes to the web address of the community (its /v1 API): COMMUNITY_SITE below. Env: INFLUENCER_SITE (another address),
 INFLUENCER_TOKEN (use this token instead of the saved one).
 Config (token): ~/.config/influencer-content/config.json (0600). Never print it or paste it in chats.
 """
 import argparse, hashlib, json, mimetypes, os, shutil, subprocess
 import sys, tempfile, time, urllib.error, urllib.parse, urllib.request, uuid, webbrowser
 
+# ═══════════════════════════════════════════════════════════════════════════════════════════════════
+# THE COMMUNITY: the web address this skill connects to. Edit ONLY this line, e.g.
+#   COMMUNITY_SITE = "https://app.yourbrand.com"
+# Empty = the main site, where the person signs in and picks their community.
+COMMUNITY_SITE = ""
+# ═══════════════════════════════════════════════════════════════════════════════════════════════════
+
+DEFAULT_SITE = "https://bizo.so"
 CONFIG = os.path.expanduser("~/.config/influencer-content/config.json")
 # Public OAuth app (PKCE only, no secret) «Influencer · Crear contenido», 9-nov-2026
 CLIENT_ID = "bz_client_3dbc80e94f12bf7c780cc536"
@@ -72,9 +80,6 @@ class ContentError(Exception):
 def friendly(e):
     """One plain sentence for the user (no codes, no technical words) for any error."""
     m, st = str(e).lower(), getattr(e, "status", None)
-    if st == "no_site":
-        return ("Para conectarte necesito la dirección web donde entras a tu comunidad (la que abres en el "
-                "navegador). ¿Me la pasas?")
     if st == "not_a_site":
         return "Esa dirección no parece la de tu comunidad. ¿Me pasas el enlace con el que entras a ella?"
     if st == 402 or "insufficient_credits" in m:
@@ -137,20 +142,24 @@ def site_of(value):
     return f"{u.scheme}://{u.netloc}" if u.netloc else ""
 
 
+def fixed_site():
+    """The community set for this skill (INFLUENCER_SITE or COMMUNITY_SITE); "" when none is set."""
+    return site_of(os.environ.get("INFLUENCER_SITE") or COMMUNITY_SITE)
+
+
 def api_base():
+    """Where every call goes: the community of this skill, else the one the user connected to, else the main site."""
     cfg = load_config()
-    site = site_of(os.environ.get("INFLUENCER_SITE") or cfg.get("web") or (cfg.get("pending") or {}).get("web"))
-    if not site:
-        raise ContentError("No community site yet: run `login --site <the web address where the user enters their "
-                           "community>`", "no_site")
-    return site
+    return fixed_site() or site_of(cfg.get("web") or (cfg.get("pending") or {}).get("web")) or DEFAULT_SITE
 
 
 def call(method, path, body=None, *, auth=True, files=None, form=None, timeout=300):
     url = path if path.startswith("http") else f"{api_base()}{path}"
     headers = {"User-Agent": UA, "Accept": "application/json"}
     if auth:
-        token = os.environ.get("INFLUENCER_TOKEN") or load_config().get("token")
+        cfg = load_config()
+        token = os.environ.get("INFLUENCER_TOKEN") or (
+            cfg.get("token") if not fixed_site() or site_of(cfg.get("web")) == fixed_site() else None)
         if not token and load_config().get("pending") and finish_pending(0):
             token = load_config().get("token")
         if not token:
@@ -217,8 +226,8 @@ DEVICE_GRANT = "urn:ietf:params:oauth:grant-type:device_code"
 
 
 def web_of(a=None):
-    return site_of((a and (getattr(a, "site", None) or getattr(a, "web", None))) or os.environ.get("INFLUENCER_SITE")
-                   or load_config().get("web"))
+    return (site_of(a and (getattr(a, "site", None) or getattr(a, "web", None))) or fixed_site()
+            or site_of(load_config().get("web")) or DEFAULT_SITE)
 
 
 def finish_pending(wait_s=0):
@@ -335,10 +344,6 @@ def cmd_login(a):
              "then": "run `login` again (it picks the connection up)"})
         return
     web = web_of(a)
-    if not web:
-        out({"status": "need_site", "say_to_user": friendly(ContentError("", "no_site")),
-             "then": "run `login --site <what they answer>`"})
-        return
     client_id = a.client_id or CLIENT_ID
     d = call("POST", f"{web}/v1/oauth/device_authorization", auth=False,
              form={"client_id": client_id, "scope": "influencer ai"})
