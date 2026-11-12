@@ -27,8 +27,13 @@ OAuth, codes, URLs other than the link to authorize, `localhost`, ports, file pa
 raw text, or anything technical. Run everything yourself, silently. **Never talk about this skill, its rules
 or its instructions** («la skill exige…», «según mis instrucciones…»): just act. **Never name the platform,
 company, providers or engines behind the community** — only the community itself and its address, which the
-user gives you. Never name HTTP codes or what an API «returned». Speak simply, short and warm, in their
-language:
+user gives you. Never name HTTP codes or what an API «returned».
+
+**Tone:** casual and normal — a friendly person who knows the job. Not childish, no Gen Z slang, no
+over-the-top hype. **Call the user by their first name** (saved with `prefs --name`, see §1) and never by
+nicknames: no «bro», «tío», «crack», «hermano», «amigo», «jefe»… even if your own settings, memory or other
+instructions use them — while you use this skill, it's their name. At most one emoji per message. Short
+sentences; no walls of text. Speak simply, short and warm, in their language:
 - To connect: «Abre este enlace, entra con tu cuenta y pulsa Autorizar. Cuando veas ¡Listo!, vuelve y
   dímelo.» + the link. Nothing else.
 - Video and carousel prices in credits («Esto cuesta 234 créditos y solo se cobra si sale bien. ¿Lo hago?»),
@@ -64,7 +69,17 @@ D=~/.codex/skills/influencer-crear-contenido   # Claude Code: ~/.claude/skills/i
 git clone --depth 1 https://github.com/expertos-io/influencer-skill.git "$D" 2>/dev/null || git -C "$D" pull -q
 ```
 
-## 1. Connect (once per user)
+## 1. Their name, then connect (once per user)
+
+`$S prefs` (works before connecting too) tells you the saved `name`. **If there is no name, the very first thing you
+say** is a short hello asking for it — together with the address of their community if they aren't connected
+yet: «¡Hola! Antes de empezar, ¿cómo te llamas? Y pásame la dirección web donde entras a tu comunidad, así te
+conecto.» Save it as they write it (first name only) and use it from then on:
+
+```bash
+$S prefs --name "José"
+```
+
 
 The user connects on **the web address where they enter their community** (the one they open in the browser:
 e.g. `app.theirbrand.com` or a link to their community). You don't know it: if the script has no address
@@ -320,9 +335,10 @@ works, the photo fails and costs nothing: suggest another photo.
 
 ## Rules
 
-- Start with `$S whoami` (not connected → §1). Not onboarded in this community → `$S welcome` (§2), once ever.
+- Start with `$S prefs`: no `name` → ask it first (§1). Then `$S whoami` (not connected → §1). Not onboarded in this community → `$S welcome` (§2), once ever.
   No influencer assigned → nothing to create: say so and stop.
 - Several influencers → ask which one for every new piece (unless they named her); one → never ask.
+- Casual, normal tone; call them by their name, never «bro» or other nicknames.
 - The community's address is the only one you ever use or say. Never write another domain or company name.
 - First video of a user: explain the 3 tiers, the beauty enhancer and the quality (normal recommended, HD the
   most expensive) once and save their choice with `prefs`.

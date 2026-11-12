@@ -264,7 +264,7 @@ def connected_summary():
     onboarded = bool((cfg.get("onboarded") or {}).get(cfg.get("community") or "?"))
     return {"connected": True, "community": cfg.get("community"), "permissions": cfg.get("scope"),
             "credits_available": credits.get("available"), "prefs": prefs(),
-            "first_time": not cfg.get("prefs"), "onboarded": onboarded,
+            "first_time": not cfg.get("prefs"), "onboarded": onboarded, "name": cfg.get("name"),
             "next": "ask what they want to make" if onboarded else "run `welcome` and say its messages (first steps)"}
 
 
@@ -314,8 +314,11 @@ def cmd_prefs(a):
         p = {}
     if a.model or a.beauty or a.quality or a.reset:
         cfg["prefs"] = p
+    if a.name:
+        cfg["name"] = a.name.strip()[:60]
+    if a.model or a.beauty or a.quality or a.reset or a.name:
         save_config(cfg)
-    out({"prefs": prefs(), "first_time": not load_config().get("prefs")})
+    out({"prefs": prefs(), "first_time": not load_config().get("prefs"), "name": load_config().get("name")})
 
 
 def cmd_login(a):
@@ -515,6 +518,7 @@ def cmd_welcome(a):
     cfg = load_config()
     community = cfg.get("community") or "?"
     first_time = not (cfg.get("onboarded") or {}).get(community)
+    hi = f"🎉 ¡Listo, {cfg['name']}! Tu cuenta está conectada." if cfg.get("name") else "🎉 ¡Listo! Tu cuenta está conectada."
     items = mine().get("data") or []
     credits = call("GET", "/v1/credits").get("available") or 0
     pr = content_prices()
@@ -530,13 +534,13 @@ def cmd_welcome(a):
     else:
         money = f"Tienes {num(credits)} créditos disponibles."
     if not items:
-        first = (f"🎉 ¡Listo, tu cuenta está conectada! {money} Todavía no tienes ninguna influencer asignada: "
+        first = (f"{hi} {money} Todavía no tienes ninguna influencer asignada: "
                  "cuando tu comunidad te asigne una, te ayudo a crear fotos y vídeos con ella.")
         second = None
     elif len(items) == 1:
         i = items[0]
         ang, sett = pack_counts(i)
-        first = f"🎉 ¡Listo, tu cuenta está conectada! Ahora mismo tienes disponible a {i.get('name')}. {money}"
+        first = f"{hi} Ahora mismo tienes disponible a {i.get('name')}. {money}"
         second = (f"¿Quieres ver las fotos de {i.get('name')}? Tiene {ang} ángulos y {sett} escenarios. "
                   f"O, si prefieres empezar ya, pásame el link de una foto o de un vídeo de Instagram y lo recreo "
                   f"con ella.")
@@ -545,7 +549,7 @@ def cmd_welcome(a):
         for i in items:
             ang, sett = pack_counts(i)
             parts.append(f"{i.get('name')} ({ang} ángulos y {sett} escenarios)")
-        first = (f"🎉 ¡Listo, tu cuenta está conectada! Ahora mismo tienes disponibles {len(items)} influencers: "
+        first = (f"{hi} Ahora mismo tienes disponibles {len(items)} influencers: "
                  f"{names_list(items)}. {money}")
         second = (f"¿Quieres ver las fotos de alguna? {'; '.join(parts)}. O, si prefieres empezar ya, pásame el link "
                   f"de una foto o de un vídeo de Instagram y te pregunto con cuál lo recreo.")
@@ -961,6 +965,7 @@ def main():
     s = sub.add_parser("prefs", help="show or save the user's defaults for the next videos")
     s.add_argument("--model", help="lite | pro | ultra")
     s.add_argument("--beauty", help="on | off | low | medium | high")
+    s.add_argument("--name", help="the user's first name, to call them by it")
     s.add_argument("--quality", help="normal (cheapest of the tier: Ultra 480p, Pro 720p; default) | hd (1080p, the most expensive)")
     s.add_argument("--reset", action="store_true")
     s.set_defaults(fn=cmd_prefs)
