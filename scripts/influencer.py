@@ -52,7 +52,7 @@ COMMUNITY_SITE = ""
 
 DEFAULT_SITE = "https://bizo.so"
 CONFIG = os.path.expanduser("~/.config/influencer-content/config.json")
-# Public OAuth app (PKCE only, no secret) «Influencer · Crear contenido», 9-nov-2026
+# Public OAuth app (PKCE only, no secret) «Influencer IA · Contenido», 9-nov-2026
 CLIENT_ID = "bz_client_3dbc80e94f12bf7c780cc536"
 UA = "influencer-content/1.0"
 MAX_UPLOAD = 20 * 1024 * 1024  # POST /v1/influencer/videos/files

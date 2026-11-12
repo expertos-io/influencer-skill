@@ -1,5 +1,5 @@
 ---
-name: influencer-crear-contenido
+name: influencer-ia-contenido
 description: >-
   Create content with YOUR influencer — VIDEOS and PHOTOS. Videos: take a video (a reel, a TikTok, a clip) and
   get the same video starring one of the influencers assigned to you — same motion, camera, background and
@@ -9,10 +9,10 @@ description: >-
   THEIR own credits. Use it WHENEVER the user wants to make content, a video or a photo with their influencer:
   "recrea este vídeo/esta foto con mi influencer", "haz este reel con Lena", "pon a Andrea en esta foto",
   "crea contenido con mi influencer", "enséñame mi influencer", or asks to connect their agent to their
-  community. Also /influencer-crear-contenido.
+  community. Also /influencer-ia-contenido.
 ---
 
-# Influencer · Crear contenido (vídeos y fotos)
+# Influencer IA · Contenido (vídeos y fotos)
 
 The user's community does all the work on its servers (motion guide, beauty frame, the video and image engines,
 the original audio back). Your job: connect the user once, **welcome them the first time** (§2), start the
@@ -59,13 +59,13 @@ Everything goes through one script with no dependencies (Python 3; ffmpeg only t
 
 ```bash
 S="python3 <this skill's folder>/scripts/influencer.py"
-# e.g. ~/.codex/skills/influencer-crear-contenido/scripts/influencer.py
+# e.g. ~/.codex/skills/influencer-ia-contenido/scripts/influencer.py
 ```
 
 ## 0. Install (if the script is missing)
 
 ```bash
-D=~/.codex/skills/influencer-crear-contenido   # Claude Code: ~/.claude/skills/influencer-crear-contenido
+D=~/.codex/skills/influencer-ia-contenido   # Claude Code: ~/.claude/skills/influencer-ia-contenido
 git clone --depth 1 https://github.com/expertos-io/influencer-skill.git "$D" 2>/dev/null || git -C "$D" pull -q
 ```
 
