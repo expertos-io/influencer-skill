@@ -570,13 +570,15 @@ def cmd_influencer_photos(a):
     folder = os.path.join(a.out, "".join(c for c in name if c.isalnum() or c in " -_").strip() or full["id"])
     os.makedirs(folder, exist_ok=True)
     by_key = {p.get("key"): p for p in full.get("pack") or []}
-    shots = [("main", "Foto principal", full.get("main_url"))]
+    main = by_key.get("main") or {}
+    shots = [("main", "Foto principal", main.get("md_url") or main.get("url") or full.get("main_url"))]
     shots += [(k, LABELS.get(k, k), by_key[k].get("md_url") or by_key[k].get("url")) for k in ANGLES + SETTINGS if k in by_key]
     files = []
     for n, (key, label, url) in enumerate(shots):
         if not url:
             continue
-        path = os.path.join(folder, f"{n:02d}-{key}.jpg")
+        ext = os.path.splitext(urllib.parse.urlparse(url).path)[1].lower() or ".jpg"
+        path = os.path.join(folder, f"{n:02d}-{key}{ext if ext in ('.jpg', '.jpeg', '.png', '.webp') else '.jpg'}")
         req = urllib.request.Request(url, headers={"User-Agent": UA})
         with urllib.request.urlopen(req, timeout=120) as resp, open(path, "wb") as fh:
             shutil.copyfileobj(resp, fh)
