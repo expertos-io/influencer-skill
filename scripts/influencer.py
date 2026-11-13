@@ -90,6 +90,9 @@ def friendly(e):
         return "Esa influencer no está entre las tuyas. Te digo cuáles tienes."
     if "no influencers assigned" in m:
         return "Todavía no tienes ninguna influencer asignada. Cuando tu comunidad te asigne una, podemos crear contenido."
+    if "age-restricted" in m:
+        return ("Instagram tiene ese vídeo restringido por edad y no deja descargarlo. Guárdalo desde la app de "
+                "Instagram y pásamelo como archivo, y lo hago igual.")
     if "could not be read" in m or "private" in m or "deleted" in m:
         return ("No he podido abrir esa publicación: puede que la cuenta sea privada o que se haya borrado. "
                 "¿Me pasas otro enlace o la foto directamente?")
