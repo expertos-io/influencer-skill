@@ -90,8 +90,13 @@ Then connect them. The script already knows which community to connect to: **nev
 address or a community**.
 
 ```bash
-$S login
+$S login --agent "<who you are: Codex, Claude, Base44 Super Agents…>"
 ```
+
+**`--agent` always**, with the name of the product you run in, exactly: `Claude Code`, `Claude`, `Codex`, `ChatGPT`,
+`Base44`, `Cursor`, `n8n`… The user sees it with its logo on the connect screen and in Settings → Security, so they
+know which connection is yours and can revoke it. Each agent keeps its own connection: connecting another one does
+not disconnect you.
 
 - It returns a **link** and `say_to_user`. Give the user that sentence and the link, nothing more. The link
   opens their community's sign-in and «Autorizar» screen; they press «Autorizar» and the page says «¡Listo!
@@ -314,7 +319,7 @@ community made for them. Reading and downloading is free and needs no confirmati
 |---|---|
 | `402 insufficient_credits` | Not enough credits: the user tops up their credits in their community. |
 | `422 validation_error` | Bad input (message says what): too long (>30 s → use `--start/--end`), too short, a quality the tier doesn't have, a URL that isn't a video. Nothing is charged. |
-| `401` / not connected | Run `$S login` again and give the user the new link. |
+| `401` / not connected | The script already tried to renew the connection by itself. If it still says 401, the user revoked it (Settings → Security) or left the community: run `$S login` again and give the user the new link. |
 | `404 not_found` on the influencer | Not one of the user's influencers: run `$S influencers`. |
 | `403 missing_scope` | That permission was not given (or the community doesn't have it): AI Influencer for videos, AI Studio for `--image`. `$S login` again and keep it on, or ask the community. |
 | task `failed` | Nothing is charged. Common: no face found in the video, the engine refused the content, a person too small. Try another clip, another tier, or `--outfit video`. |

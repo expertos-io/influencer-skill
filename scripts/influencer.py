@@ -5,7 +5,7 @@ Standard library only.
 Each user connects THEIR agent to THEIR community (on the web address where they enter it) with OAuth.
 Content is made with the influencers assigned to them, and everything is paid with their own credits.
 
-  python3 influencer.py login                        # a link to authorize; run it again until connected
+  python3 influencer.py login [--agent "Codex"]      # a link to authorize; run it again until connected
   python3 influencer.py welcome                      # first steps: their influencers, angles and settings
   python3 influencer.py influencer-photos <id|#number|name> [--out dir]   # download all the photos of one
   python3 influencer.py whoami                       # connected? community, permissions, credit balance
@@ -160,7 +160,45 @@ def api_base():
     return fixed_site() or site_of(cfg.get("web") or (cfg.get("pending") or {}).get("web")) or DEFAULT_SITE
 
 
-def call(method, path, body=None, *, auth=True, files=None, form=None, timeout=300):
+def try_refresh():
+    """The saved token stopped working: one refresh with the saved refresh_token (same connection). True if it worked."""
+    cfg = load_config()
+    if os.environ.get("INFLUENCER_TOKEN") or not cfg.get("refresh_token") or not cfg.get("web"):
+        return False
+    try:
+        tok = call("POST", f"{cfg['web']}/v1/oauth/token", auth=False, form={
+            "grant_type": "refresh_token", "refresh_token": cfg["refresh_token"],
+            "client_id": cfg.get("client_id") or CLIENT_ID})
+    except ContentError:
+        # Revoked (Settings → Security) or no longer a member: a new login is needed
+        cfg.pop("refresh_token", None)
+        save_config(cfg)
+        return False
+    cfg = load_config()
+    cfg["token"] = tok["access_token"]
+    if tok.get("refresh_token"):
+        cfg["refresh_token"] = tok["refresh_token"]
+    save_config(cfg)
+    return True
+
+
+def agent_name(a=None):
+    """Who is connecting, shown to the person in Settings → Security («Codex», «Claude Code»…)."""
+    name = (a and getattr(a, "agent", None)) or os.environ.get("INFLUENCER_AGENT")
+    if not name:
+        env = os.environ
+        if any(k.startswith("CODEX_") for k in env):
+            name = "Codex"
+        elif env.get("CLAUDECODE") or env.get("CLAUDE_CODE_ENTRYPOINT"):
+            name = "Claude Code"
+        elif any(k.startswith("CURSOR_") for k in env) or "cursor" in env.get("TERM_PROGRAM", "").lower():
+            name = "Cursor"
+        elif any(k.startswith("BASE44") for k in env):
+            name = "Base44"
+    return (name or "").strip()[:60] or None
+
+
+def call(method, path, body=None, *, auth=True, files=None, form=None, timeout=300, _refreshed=False):
     url = path if path.startswith("http") else f"{api_base()}{path}"
     headers = {"User-Agent": UA, "Accept": "application/json"}
     if auth:
@@ -215,6 +253,8 @@ def call(method, path, body=None, *, auth=True, files=None, form=None, timeout=3
             if msg is None:
                 # Not a JSON answer: that address is not a community site (or it doesn't serve its API)
                 raise ContentError(f"{url} did not answer like a community site ({e.code})", "not_a_site")
+            if e.code == 401 and auth and not _refreshed and try_refresh():
+                return call(method, path, body, auth=auth, files=files, form=form, timeout=timeout, _refreshed=True)
             if e.code == 401 and auth:
                 msg += " — the token was revoked or is invalid: run `login` again"
             raise ContentError(msg, e.code)
@@ -268,8 +308,8 @@ def finish_pending(wait_s=0):
             raise
         cfg = load_config()
         cfg.pop("pending", None)
-        cfg.update({"token": tok["access_token"], "scope": tok.get("scope"), "client_id": p["client_id"],
-                    "web": p["web"], "community": (tok.get("community") or {}).get("slug")})
+        cfg.update({"token": tok["access_token"], "refresh_token": tok.get("refresh_token"), "scope": tok.get("scope"),
+                    "client_id": p["client_id"], "web": p["web"], "community": (tok.get("community") or {}).get("slug")})
         save_config(cfg)
         return True
 
@@ -352,12 +392,15 @@ def cmd_login(a):
         return
     web = web_of(a)
     client_id = a.client_id or CLIENT_ID
-    d = call("POST", f"{web}/v1/oauth/device_authorization", auth=False,
-             form={"client_id": client_id, "scope": "influencer ai"})
+    form = {"client_id": client_id, "scope": "influencer ai"}
+    if agent_name(a):
+        form["device_name"] = agent_name(a)
+    d = call("POST", f"{web}/v1/oauth/device_authorization", auth=False, form=form)
     # The link always on the site where the person signs in (their community's address)
     link = f"{web}/oauth/device?user_code={d['user_code']}"
     cfg = load_config()
     cfg.pop("token", None)
+    cfg.pop("refresh_token", None)
     cfg["web"] = web
     cfg["pending"] = {"device_code": d["device_code"], "user_code": d["user_code"], "client_id": client_id,
                       "web": web, "link": link, "interval": d.get("interval", 5),
@@ -386,6 +429,7 @@ def cmd_logout(a):
     except ContentError as e:
         print(f"Revoke: {e}", file=sys.stderr)
     cfg.pop("token", None)
+    cfg.pop("refresh_token", None)
     save_config(cfg)
     out({"connected": False})
 
@@ -1090,6 +1134,8 @@ def main():
     s.add_argument("--new", action="store_true", help="a new link even if one is still waiting")
     s.add_argument("--wait", type=int, default=90, help="seconds to wait for the person in this run (default 90)")
     s.add_argument("--client-id")
+    s.add_argument("--agent", help="who you are («Codex», «Base44 Super Agents», «Claude»…): the person sees it in "
+                                   "Settings → Security, next to this connection")
     s.set_defaults(fn=cmd_login)
     sub.add_parser("logout").set_defaults(fn=cmd_logout)
     sub.add_parser("whoami").set_defaults(fn=cmd_whoami)
