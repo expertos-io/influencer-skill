@@ -5,6 +5,7 @@ Skill para Codex, Claude Code y cualquier agente: crea fotos y vídeos con tu in
 - Conecta tu cuenta de tu comunidad (con su dirección web).
 - Recrea fotos y carruseles de Instagram con tu influencer.
 - Recrea reels y vídeos con tu influencer.
+- Ve y descarga lo que ya hiciste (fotos y vídeos) y tus planes de contenido.
 - Todo con tus créditos.
 
 ## Instalar

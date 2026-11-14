@@ -18,6 +18,10 @@ Content is made with the influencers assigned to them, and everything is paid wi
                                [--prompt "..."] [--outfit photo|video] [--start 0 --end 12]
                                [--out ./videos] [--no-wait]
   python3 influencer.py create --model pro --image face.jpg --video clip.mp4 ...   # any photo: only with AI Studio
+  python3 influencer.py my-content [--kind image|video] [--influencer ...] [--download | --zip]   # what they made
+  python3 influencer.py my-videos [--download]       # their videos, newest first
+  python3 influencer.py plans                        # their published content plans
+  python3 influencer.py plan <id> [--download | --zip]   # one plan: posts, captions and photos
   python3 influencer.py finalize <task_id_of_an_ultra_480p> [--out ./videos]     # Ultra only: that draft in 1080p
   python3 influencer.py status <task_id>             # one look
   python3 influencer.py wait <task_id> [--out dir]   # poll until it ends and download
@@ -948,6 +952,126 @@ def cmd_photo_wait(a):
     out({"photos": res, "say_to_user": photos_say(res)})
 
 
+# ------------------------------------------------------------------ what they already made (and their plans)
+# GET /v1/influencer/content, /videos and /plans (14-nov): any member reads and downloads their own, for free.
+
+def save_url(url, path):
+    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+    req = urllib.request.Request(url, headers={"User-Agent": UA})
+    with urllib.request.urlopen(req, timeout=900) as r, open(path, "wb") as fh:
+        shutil.copyfileobj(r, fh)
+    return path
+
+
+def ext_of(url, fallback):
+    e = os.path.splitext(urllib.parse.urlparse(url).path)[1].lower()
+    return e if e in (".jpg", ".jpeg", ".png", ".webp", ".mp4", ".mov", ".webm") else fallback
+
+
+def day_of(ts):
+    return time.strftime("%Y-%m-%d", time.localtime(ts)) if ts else None
+
+
+def save_zip(res, out_dir, name):
+    path = save_url(res["url"], os.path.join(out_dir, name))
+    return {"zip": path, "zip_url": res["url"]}
+
+
+def cmd_my_content(a):
+    """What the user already made with their influencers (photos, videos) and the photos of their plans."""
+    q = {"limit": a.limit}
+    if a.kind:
+        q["kind"] = a.kind
+    if a.source:
+        q["source"] = a.source
+    if a.influencer:
+        q["influencer_id"] = resolve_influencer(a.influencer)["id"]
+    if a.since:
+        q["from"] = a.since
+    if a.cursor:
+        q["cursor"] = a.cursor
+    res = call("GET", "/v1/influencer/content?" + urllib.parse.urlencode(q))
+    items = res.get("data") or []
+    rows = [{"id": i["id"], "kind": i["kind"], "source": i["source"], "day": day_of(i.get("created_at")),
+             "influencer": (f"#{i['influencer']['number']} {i['influencer']['name']}" if i.get("influencer") else None),
+             "url": i["url"], "preview_url": i.get("thumb_url") or i.get("poster_url"), "plan_id": i.get("plan_id")}
+            for i in items]
+    result = {"items": rows, "next_cursor": res.get("next_cursor")}
+    if a.download and items:
+        for n, i in enumerate(items, 1):
+            r = rows[n - 1]
+            r["saved"] = save_url(i["url"], os.path.join(a.out, f"{n:03d}-{i['kind']}-{i['id'][:8]}{ext_of(i['url'], '.mp4' if i['kind'] == 'video' else '.jpg')}"))
+    if a.zip and items:
+        z = call("POST", "/v1/influencer/content/zip", {"ids": [i["id"] for i in items]})
+        result.update(save_zip(z, a.out, f"contenido-{time.strftime('%Y%m%d-%H%M%S')}.zip"))
+    photos = sum(1 for i in items if i["kind"] == "image")
+    videos = len(items) - photos
+    parts = [f"{photos} foto{'s' if photos != 1 else ''}" if photos else "", f"{videos} vídeo{'s' if videos != 1 else ''}" if videos else ""]
+    found = " y ".join(x for x in parts if x)
+    result["say_to_user"] = (f"Tienes {found} aquí" + (" (y hay más: dime si sigo)" if res.get("next_cursor") else "") + "."
+                             if items else "Todavía no hay nada hecho con tus influencers.")
+    out(result)
+
+
+def cmd_my_videos(a):
+    """Their Influencer Video videos (also the ones made with any photo), newest first."""
+    q = {"limit": a.limit}
+    if a.status:
+        q["status"] = a.status
+    if a.model:
+        q["tier"] = model_of(a.model)[0]
+    if a.cursor:
+        q["cursor"] = a.cursor
+    res = call("GET", "/v1/influencer/videos?" + urllib.parse.urlencode(q))
+    rows = []
+    for t in res.get("data") or []:
+        files = (t.get("output") or {}).get("files") or []
+        row = {"id": t["id"], "status": t.get("status"), "model": t.get("model"), "day": day_of(t.get("created_at")),
+               "url": files[0]["url"] if files else None}
+        if a.download and t.get("status") == "succeeded" and files:
+            row["saved"] = download_outputs(t, a.out)
+        rows.append(row)
+    out({"videos": rows, "next_cursor": res.get("next_cursor")})
+
+
+def cmd_plans(a):
+    """Their published content plans (what they see in «Mis planes»)."""
+    q = {}
+    if a.influencer:
+        q["influencer_id"] = resolve_influencer(a.influencer)["id"]
+    res = call("GET", "/v1/influencer/plans" + ("?" + urllib.parse.urlencode(q) if q else ""))
+    plans = [{"id": p["id"], "title": p.get("title"), "month": p.get("month"), "days": p.get("days"),
+              "influencer": (f"#{p['influencer']['number']} {p['influencer']['name']}" if p.get("influencer") else None),
+              "published": day_of(p.get("published_at")), "counts": p.get("counts")}
+             for p in res.get("data") or []]
+    out({"plans": plans,
+         "say_to_user": (f"Tienes {len(plans)} plan{'es' if len(plans) != 1 else ''} de contenido: "
+                         + ", ".join(f"{p['title']} ({p['influencer']})" for p in plans) + "."
+                         if plans else "Todavía no tienes planes de contenido publicados.")})
+
+
+def cmd_plan(a):
+    """One plan: every post (day, format, caption, photos); `--download` saves the photos, `--zip` the month ZIP."""
+    p = call("GET", f"/v1/influencer/plans/{a.id}")
+    folder = os.path.join(a.out, "".join(c for c in (p.get("title") or p["id"]) if c.isalnum() or c in " -_").strip() or p["id"])
+    posts = []
+    for post in p.get("posts") or []:
+        media = post.get("media") or []
+        row = {"day": post.get("day"), "format": post.get("format"), "caption": post.get("caption"),
+               "photos": [m.get("url") for m in media]}
+        if a.download:
+            row["saved"] = [save_url(m["url"], os.path.join(folder, f"D{post.get('day', 0):02d}-{n}{ext_of(m['url'], '.jpg')}"))
+                            for n, m in enumerate(media, 1)]
+        posts.append(row)
+    result = {"id": p["id"], "title": p.get("title"),
+              "influencer": (f"#{p['influencer']['number']} {p['influencer']['name']}" if p.get("influencer") else None),
+              "posts": posts}
+    if a.zip:
+        z = call("POST", f"/v1/influencer/plans/{a.id}/zip")
+        result.update(save_zip(z, a.out, f"{os.path.basename(folder)}.zip"))
+    out(result)
+
+
 # ------------------------------------------------------------------ CLI
 
 def main():
@@ -1033,6 +1157,34 @@ def main():
         if name == "photo-wait":
             s.add_argument("--out", default="./influencer-photos")
         s.set_defaults(fn=fn)
+    s = sub.add_parser("my-content", help="what the user already made: photos, videos and the photos of their plans")
+    s.add_argument("--kind", choices=["image", "video"])
+    s.add_argument("--source", help="recreate, video, plan, studio (comma-separated)")
+    s.add_argument("--influencer", help="only this influencer: id, #number or name")
+    s.add_argument("--since", help="only from this date, e.g. 2026-11-01")
+    s.add_argument("--limit", type=int, default=20)
+    s.add_argument("--cursor", help="next_cursor of the previous page")
+    s.add_argument("--download", action="store_true", help="save every file of this page")
+    s.add_argument("--zip", action="store_true", help="one ZIP with this page (up to 50; heavy videos: fewer)")
+    s.add_argument("--out", default="./my-content")
+    s.set_defaults(fn=cmd_my_content)
+    s = sub.add_parser("my-videos", help="the user's videos (also the ones made with any photo)")
+    s.add_argument("--status", choices=["queued", "processing", "succeeded", "failed"])
+    s.add_argument("--model", help="lite | pro | ultra")
+    s.add_argument("--limit", type=int, default=20)
+    s.add_argument("--cursor")
+    s.add_argument("--download", action="store_true", help="save the finished ones")
+    s.add_argument("--out", default="./influencer-videos")
+    s.set_defaults(fn=cmd_my_videos)
+    s = sub.add_parser("plans", help="the user's published content plans")
+    s.add_argument("--influencer", help="id, #number or name")
+    s.set_defaults(fn=cmd_plans)
+    s = sub.add_parser("plan", help="one plan with every post; --download the photos or --zip the month")
+    s.add_argument("id")
+    s.add_argument("--download", action="store_true")
+    s.add_argument("--zip", action="store_true")
+    s.add_argument("--out", default="./my-plans")
+    s.set_defaults(fn=cmd_plan)
     for name, fn in (("status", cmd_status), ("wait", cmd_wait)):
         s = sub.add_parser(name)
         s.add_argument("task_id")

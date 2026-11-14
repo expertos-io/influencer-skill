@@ -9,7 +9,9 @@ description: >-
   THEIR own credits. Use it WHENEVER the user wants to make content, a video or a photo with their influencer:
   "recrea este vídeo/esta foto con mi influencer", "haz este reel con Lena", "pon a Andrea en esta foto",
   "crea contenido con mi influencer", "enséñame mi influencer", or asks to connect their agent to their
-  community. Also /influencer-ia-contenido.
+  community. Also to SEE or DOWNLOAD what they already made and their content plans: "enséñame mis vídeos",
+  "descárgame las fotos de Lena", "mi plan de contenido de este mes", "pásame el ZIP del plan".
+  Also /influencer-ia-contenido.
 ---
 
 # Influencer IA · Contenido (vídeos y fotos)
@@ -56,7 +58,8 @@ sentences; no walls of text. Speak simply, short and warm, in their language:
     change, a correction).
   - after a failed video → propose the fix («¿Lo intento con otro clip?» / «¿Pruebo con el modelo Pro?»).
   Only offer things this skill can do (videos and photos with their influencers, quality, beauty, tier, cuts,
-  an extra instruction or a correction to adjust the result); never promise captions or posting.
+  an extra instruction or a correction to adjust the result, and seeing or downloading what they already made
+  and their content plans, §6); never promise writing captions or posting.
 **Talk to the user in their language** (usually Spanish). **The user is the only judge of a result.**
 
 Everything goes through one script with no dependencies (Python 3; ffmpeg only to shrink videos > 20 MB):
@@ -280,7 +283,32 @@ Every photo is made with **Influencer Image**, the photo engine: that is its onl
 else). If a photo can't be made one way, other ways are tried on their own — nothing to do or explain. If none
 works, the photo fails and costs nothing: suggest another photo.
 
-## 6. Errors
+## 6. What they already made, and their plans (free)
+
+Everything the user made with their influencers stays in their community, and so do the content plans the
+community made for them. Reading and downloading is free and needs no confirmation.
+
+- **Their content** (photos and videos, newest first; also the photos of their plans):
+  ```bash
+  $S my-content                                   # the latest 20; --kind video, --influencer "#101", --since 2026-11-01
+  $S my-content --kind image --download --out ./my-content   # save every file of that page
+  $S my-content --zip --out ./my-content          # or one ZIP with that page (up to 50; videos weigh more)
+  ```
+  More than one page: run it again with `--cursor <next_cursor>`. Say `say_to_user` and hand over the files.
+  To show them in the chat, use the `preview_url` (small) and give the `url` (the full file) to download.
+- **Only their videos** (also the ones made with any photo): `$S my-videos [--download]`.
+- **Their content plans** (the ones they see in the community, by month):
+  ```bash
+  $S plans                                        # their plans: title, influencer, month
+  $S plan <id>                                    # every post: day, format, caption and its photos
+  $S plan <id> --zip --out ./my-plans             # the month ZIP (D01-1.jpg… and captions.txt)
+  $S plan <id> --download --out ./my-plans        # or every photo, one by one
+  ```
+  Plans are made by the community; this skill doesn't create or change them. If they have none, say so.
+- After showing them, suggest one next step: recreate one of them again, a new video with the same
+  influencer, or the ZIP if they only saw the list.
+
+## 7. Errors
 
 | Error | What to tell / do |
 |---|---|
@@ -293,7 +321,7 @@ works, the photo fails and costs nothing: suggest another photo.
 | `403` on photos | The user has no access to AI Influencer in this community or no influencer assigned: the community must give it. |
 | photo `failed` | It could not be made (some photos, like swimwear, are refused) or it has no clear person: nothing is charged; suggest another photo. |
 
-## 7. Without the script (any orchestrator: n8n, Make, ChatGPT actions…)
+## 8. Without the script (any orchestrator: n8n, Make, ChatGPT actions…)
 
 `<site>` = the community's web address: `COMMUNITY_SITE` at the top of `scripts/influencer.py` (empty = its
 default, `DEFAULT_SITE`). Every call goes there.
@@ -333,6 +361,15 @@ default, `DEFAULT_SITE`). Every call goes there.
     `result_url` (the photo), `engine` (always `influencer-image`), `face_covered`, `credits`.
   - Adjust (each returns a NEW recreation to poll): `POST …/recreations/<id>/not-her` (face covered, once),
     `POST …/recreations/<id>/fix` `{ "text": "…" }`, `POST …/recreations/<id>/retry`; keep it: `POST …/recreations/<id>/approve`.
+- **What they already made and their plans** (free; each `url` is the file itself):
+  - `GET https://<site>/v1/influencer/content?kind=image|video&source=recreate,video,plan,studio&influencer_id=…&from=2026-11-01&limit=40&cursor=…`
+    → `{ data: [{ id, kind, source, url, thumb_url, poster_url, influencer: { id, number, name }, plan_id, created_at }], next_cursor }`.
+  - `POST https://<site>/v1/influencer/content/zip` `{ "ids": ["…"] }` (up to 50, up to 300 MB) → `{ url, count, missing }` (the ZIP).
+  - `GET https://<site>/v1/influencer/videos?status=succeeded&tier=ultra&limit=20&cursor=…` → the same tasks as
+    `GET /videos/<id>`, newest first (`output.files[0].url` = the MP4).
+  - `GET https://<site>/v1/influencer/plans` → their published plans; `GET …/plans/<id>` → `posts: [{ day, format,
+    caption, media: [{ url, md_url, role }] }]`; `POST …/plans/<id>/zip` → `{ url }` (the month ZIP).
+  - `POST https://<site>/v1/influencer/influencers/<id>/zip` → `{ url }`: the ZIP of one of their influencers (her pack).
 
 ## Rules
 
